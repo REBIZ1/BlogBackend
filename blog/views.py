@@ -4,6 +4,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.db.models import Count
+from django.core.paginator import Paginator
 import json
 
 def post_detail(request, pk):
@@ -49,6 +50,7 @@ def track_time(request): # Время просмотра
         return JsonResponse({'status': 'error', 'message': 'Invalid data'}, status=400)
 
 def post_list(request):
+    # Работа с постами и тэгами для сортировки по ним
     tag_slug = request.GET.get('tag')
     posts = Post.objects.all().order_by('-created_at')
 
@@ -57,8 +59,14 @@ def post_list(request):
 
     tags = Tag.objects.annotate(post_count=Count('posts'))
 
+    paginator = Paginator(posts, 3)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     return render(request, 'blog/post_list.html', {
+        'page_obj': page_obj,
         'posts': posts,
         'tags': tags,
         'selected_tag': tag_slug
     })
+
