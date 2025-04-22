@@ -5,6 +5,15 @@
     <title>Блог</title>
 </head>
 <body>
+    <form method="get" action="{% url 'post_list' %}">
+        <input type="text" name="q" value="{{ query }}" placeholder="Поиска...">
+
+        {% if selected_tag %}
+            <input type="hidden" name="tag" value="{{ selected_tag }}">
+        {% endif %}
+        <button type="submit">🔍 Найти</button>
+    </form>
+
     <h1>Все посты</h1>
 
     <div>

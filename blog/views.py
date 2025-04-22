@@ -1,10 +1,13 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django.template.defaultfilters import title
+
 from .models import Post, ReadingTime, Like, Tag
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.db.models import Count
 from django.core.paginator import Paginator
+from django.db.models import Q
 import json
 
 def post_detail(request, pk):
@@ -51,11 +54,17 @@ def track_time(request): # Время просмотра
 
 def post_list(request):
     # Работа с постами и тэгами для сортировки по ним
+    query = request.GET.get('q')
     tag_slug = request.GET.get('tag')
     posts = Post.objects.all().order_by('-created_at')
 
     if tag_slug:
         posts = posts.filter(tags__slug=tag_slug)
+
+    if query:
+        posts = posts.filter(
+            Q(title__icontains=query) | Q(content__icontains=query)
+        )
 
     tags = Tag.objects.annotate(post_count=Count('posts'))
 
@@ -67,6 +76,9 @@ def post_list(request):
         'page_obj': page_obj,
         'posts': posts,
         'tags': tags,
-        'selected_tag': tag_slug
+        'selected_tag': tag_slug,
+        'query': query
     })
+
+
 
