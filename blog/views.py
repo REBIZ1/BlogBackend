@@ -1,6 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.template.defaultfilters import title
-
+from django.db.models.functions import Lower
 from .models import Post, ReadingTime, Like, Tag
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
@@ -60,10 +59,17 @@ def post_list(request):
 
     if tag_slug:
         posts = posts.filter(tags__slug=tag_slug)
+        selected_tag_obj = Tag.objects.filter(slug=tag_slug).first()
+    else:
+        selected_tag_obj = None
 
     if query:
-        posts = posts.filter(
-            Q(title__icontains=query) | Q(content__icontains=query)
+        posts = posts.annotate(
+            lower_title=Lower('title'),
+            lower_content=Lower('content')
+        ).filter(
+            Q(lower_title__contains=query.lower()) |
+            Q(lower_content__contains=query.lower())
         )
 
     tags = Tag.objects.annotate(post_count=Count('posts'))
@@ -77,6 +83,7 @@ def post_list(request):
         'posts': posts,
         'tags': tags,
         'selected_tag': tag_slug,
+        'selected_tag_obj': selected_tag_obj,
         'query': query
     })
 

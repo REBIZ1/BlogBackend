@@ -5,6 +5,23 @@
     <title>Блог</title>
 </head>
 <body>
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; border-bottom: 1px solid #ccc;">
+        <div>
+            <h2><a href="{% url 'post_list' %}">Блог</a></h2>
+        </div>
+        <div>
+            {% if user.is_authenticated %}
+                {% if user.avatar %}
+                    <img src="{{ user.avatar.url }}" alt="Аватар" style="height: 40px; width: 40px; object-fit: cover; border-radius: 50%; vertical-align: middle;">
+                {% endif %}
+                <span style="margin-left: 10px;">{{ user.username }}</span>
+                <a href="{% url 'logout' %}" style="margin-left: 10px;">Выйти</a>
+            {% else %}
+                <a href="{% url 'login' %}?next={{ request.path }}">Войти</a>
+            {% endif %}
+        </div>
+    </div>
+
     <form method="get" action="{% url 'post_list' %}">
         <input type="text" name="q" value="{{ query }}" placeholder="Поиска...">
 
@@ -15,7 +32,9 @@
     </form>
 
     <h1>Все посты</h1>
-
+    {% if selected_tag_obj  %}
+        <h2>Посты с тегом: #{{ selected_tag_obj.name }}</h2>
+    {% endif %}
     <div>
         <h3>Фильтр по тегам:</h3>
         <a href="{% url 'post_list' %}">Все</a>
