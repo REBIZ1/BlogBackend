@@ -42,7 +42,7 @@ def track_time(request): # Время просмотра
         post_id = data.get('post_id')
         seconds = data.get('seconds')
 
-        if user and post_id and seconds:
+        if user and post_id and seconds and seconds > 8:
             ReadingTime.objects.create(
                 user=user,
                 post_id=post_id,
