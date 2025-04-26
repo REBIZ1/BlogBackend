@@ -4,7 +4,7 @@ from . import views
 
 urlpatterns = [
     path('favorites/', views.favorites_view, name='favorites'),
-    path('create/', views.create_post_placeholder, name='create_post_placeholder'),
+    path('create/', views.create_post, name='create_post'),
     path('history/', views.history_view, name='history'),
     path('settings/', views.account_settings_view, name='account_settings'),
     path('password_change/', auth_views.PasswordChangeView.as_view(

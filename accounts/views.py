@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect
 from  django.contrib.auth import login, logout, authenticate
 from django.contrib import messages
-from .forms import CustomUserCreationForm, CustomUserEditForm
+from .forms import CustomUserCreationForm, CustomUserEditForm, PostCreateForm
 from blog.models import Post, ReadingTime
 from django.contrib.auth.decorators import login_required
 
@@ -55,4 +55,23 @@ def account_settings_view(request):
     return render(request, 'accounts/settings.html', {
         'form': form,
         'active_tab': 'settings'
+    })
+
+@login_required
+def create_post(request):
+    if request.method == 'POST':
+        form = PostCreateForm(request.POST, request.FILES)
+        if form.is_valid():
+            post = form.save(commit=False)
+            post.author = request.user
+            post.save()
+            form.save_m2m()
+            messages.success(request, 'Статья успешно создана!')
+            return redirect('create_post')
+    else:
+        form = PostCreateForm()
+
+    return render(request, 'accounts/create.html', {
+        'form': form,
+        'active_tab': 'create'
     })

@@ -52,6 +52,11 @@
 {% for post in page_obj %}
     <div>
         <h2><a href="{% url 'post_detail' pk=post.pk %}">{{ post.title }}</a></h2>
+        <p>
+        {% if post.cover %}
+            <img src="{{ post.cover.url }}" alt="Обложка" style="width: 40%; max-height: 400px; object-fit: cover;">
+        {% endif %}
+        </p>
         <p><strong>Автор:</strong> {{ post.author.username }}</p>
         <p>{{ post.content|truncatewords:20 }}</p>
         <p>👁 {{ post.views }} | ❤️ {{ post.total_likes }}</p>
