@@ -1,9 +1,15 @@
-from django.urls import path
-from . import views
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import PostViewSet, TrackPostView
+
+router = DefaultRouter()
+router.register(r'posts', PostViewSet, basename='post')
 
 urlpatterns = [
-    path('', views.post_list, name='post_list'),
-    path('post/<int:pk>/', views.post_detail, name='post_detail'),
-    path('track-time/', views.track_time, name='track_time'),
+    path('', include(router.urls)),
 ]
 
+# Маршрут для времени чтения статьи
+urlpatterns += [
+    path('track/', TrackPostView.as_view(), name='track_post'),
+]

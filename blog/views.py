@@ -1,91 +1,86 @@
-from django.shortcuts import render, get_object_or_404, redirect
-from django.db.models.functions import Lower
-from .models import Post, ReadingTime, Like, Tag
-from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
-from django.shortcuts import redirect
-from django.db.models import Count
-from django.core.paginator import Paginator
-from django.db.models import Q
-import json
+from rest_framework import viewsets, status
+from .models import Post, ReadingTime, Like
+from .serializers import PostSerializer
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.db.models import F
+from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
+from datetime import timedelta
+from django.utils import timezone
+from rest_framework.decorators import action
 
-def post_detail(request, pk):
-    post = get_object_or_404(Post, pk=pk)
-    session_key = f'viewed_post_{pk}'
+# Вывод списка постов на главной странице
+class PostViewSet(viewsets.ModelViewSet):
+    queryset  = Post.objects.all().order_by('-created_at')
+    serializer_class  = PostSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
-    # Учет просмотра
-    if not request.session.get(session_key, False):
-        post.views += 1
-        post.save()
-        request.session[session_key] = True
+    # Создание лайки/инлайка и отправка статуса лайка
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticatedOrReadOnly])
+    def like(self, request, pk=None):
+        post = self.get_object()
+        user = request.user
 
-    # Обработка лайка
-    if request.method == 'POST' and request.user.is_authenticated:
-        existing_like = Like.objects.filter(user=request.user, post=post)
-        if existing_like.exists():
-            existing_like.delete()
-        else:
-            Like.objects.create(user=request.user, post=post)
-        return redirect('post_detail', pk=pk)  # Обновим страницу
+        # Попытка создать лайк
+        liked, created = Like.objects.get_or_create(user=user, post=post)
+        if not created:
+            # Уже был лайк
+            liked.delete()
+            return Response({
+                'status': 'unliked',
+                'likes_count': post.likes.count()
+            }, status=status.HTTP_200_OK)
 
-    context = {
-        'post': post,
-        'is_liked': Like.objects.filter(user=request.user, post=post).exists() if request.user.is_authenticated else False
-    }
-    return render(request, 'blog/post_detail.html', context)
+        return Response({
+            'status': 'liked',
+            'likes_count': post.likes.count()
+        }, status=status.HTTP_201_CREATED)
 
-@csrf_exempt
-def track_time(request): # Время просмотра
-    if request.method == 'POST':
-        data = json.loads(request.body)
+
+
+class TrackPostView(APIView):
+    permission_classes = [AllowAny]  # и гости, и юзеры
+
+    def post(self, request):
+        post_id = request.data.get('post_id')
+        seconds = request.data.get('seconds')
+
+        if not post_id or seconds is None:
+            return Response({'error': 'post_id и seconds обязательны'}, status=400)
+
+        try:
+            post = Post.objects.get(id=post_id)
+        except Post.DoesNotExist:
+            return Response({'error': 'Статья не найдена'}, status=404)
+
+        # Фильтрация "мусора" по времени чтения
+        seconds = int(seconds)
+        if seconds < 10:
+            return Response({'status': 'too_short'})
+
+        now = timezone.now()
+        THRESHOLD_HOURS = 4
+        cutoff = now - timedelta(hours=THRESHOLD_HOURS)
+
         user = request.user if request.user.is_authenticated else None
-        post_id = data.get('post_id')
-        seconds = data.get('seconds')
-
-        if user and post_id and seconds and seconds > 8:
-            ReadingTime.objects.create(
-                user=user,
-                post_id=post_id,
-                seconds_spent=seconds
-            )
-            return JsonResponse({'status': 'success'})
-        return JsonResponse({'status': 'error', 'message': 'Invalid data'}, status=400)
-
-def post_list(request):
-    # Работа с постами и тэгами для сортировки по ним
-    query = request.GET.get('q')
-    tag_slug = request.GET.get('tag')
-    posts = Post.objects.all().order_by('-created_at')
-
-    if tag_slug:
-        posts = posts.filter(tags__slug=tag_slug)
-        selected_tag_obj = Tag.objects.filter(slug=tag_slug).first()
-    else:
-        selected_tag_obj = None
-
-    if query:
-        posts = posts.annotate(
-            lower_title=Lower('title'),
-            lower_content=Lower('content')
-        ).filter(
-            Q(lower_title__contains=query.lower()) |
-            Q(lower_content__contains=query.lower())
-        )
-
-    tags = Tag.objects.annotate(post_count=Count('posts'))
-
-    paginator = Paginator(posts, 3)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    return render(request, 'blog/post_list.html', {
-        'page_obj': page_obj,
-        'posts': posts,
-        'tags': tags,
-        'selected_tag': tag_slug,
-        'selected_tag_obj': selected_tag_obj,
-        'query': query
-    })
 
 
+        if user:
+            # авторизованный: смотрим ReadingTime
+            last = ReadingTime.objects.filter(user=user, post=post).order_by('-timestamp').first()
+            if not last or last.timestamp < cutoff:
+                Post.objects.filter(pk=post.pk).update(views=F('views') + 1)
+        else:
+            # гость: храним в сессии метку последнего просмотра
+            session_key = f'viewed_post_{post.pk}'
+            last_ts = request.session.get(session_key)
+            if not last_ts or timezone.datetime.fromisoformat(last_ts) < cutoff:
+                Post.objects.filter(pk=post.pk).update(views=F('views') + 1)
+                # сохраняем новую отметку
+                request.session[session_key] = now.isoformat()
+
+        if user:
+            ReadingTime.objects.create(user=user, post=post, seconds_spent=seconds)
+
+        return Response({'status': 'ok'})
 
