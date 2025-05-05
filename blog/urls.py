@@ -13,3 +13,4 @@ urlpatterns = [
 urlpatterns += [
     path('track/', TrackPostView.as_view(), name='track_post'),
 ]
+
