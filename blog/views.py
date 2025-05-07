@@ -1,6 +1,6 @@
 from rest_framework import viewsets, status
-from .models import Post, ReadingTime, Like
-from .serializers import PostSerializer
+from .models import Post, ReadingTime, Like, Tag
+from .serializers import PostSerializer, TagSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import F
@@ -9,22 +9,37 @@ from datetime import timedelta
 from django.utils import timezone
 from rest_framework.decorators import action
 
+class TagViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Только для чтения: GET /api/tags/ и GET /api/tags/{pk}/
+    """
+    queryset = Tag.objects.all().order_by('name')
+    serializer_class = TagSerializer
+
 # Вывод списка постов на главной странице
 class PostViewSet(viewsets.ModelViewSet):
-    queryset  = Post.objects.all().order_by('-created_at')
-    serializer_class  = PostSerializer
+    serializer_class = PostSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
 
-    # Создание лайки/инлайка и отправка статуса лайка
+    def get_queryset(self):
+        """
+        Взять все посты, отсортировать по дате,
+        и, если в GET-параметрах пришёл ?tag=slug,
+        отфильтровать те, у которых есть этот тег.
+        """
+        qs = Post.objects.all().order_by('-created_at')
+        tag_slug = self.request.query_params.get('tag')
+        if tag_slug:
+            qs = qs.filter(tags__slug=tag_slug)
+        return qs
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticatedOrReadOnly])
     def like(self, request, pk=None):
         post = self.get_object()
         user = request.user
 
-        # Попытка создать лайк
         liked, created = Like.objects.get_or_create(user=user, post=post)
         if not created:
-            # Уже был лайк
             liked.delete()
             return Response({
                 'status': 'unliked',
