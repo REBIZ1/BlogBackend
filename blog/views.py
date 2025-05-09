@@ -33,6 +33,10 @@ class PostViewSet(viewsets.ModelViewSet):
             qs = qs.filter(tags__slug=tag_slug)
         return qs
 
+    def perform_create(self, serializer):
+        # При создании поста явно передаём author=current user
+        serializer.save(author=self.request.user)
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticatedOrReadOnly])
     def like(self, request, pk=None):
         post = self.get_object()
@@ -70,7 +74,7 @@ class TrackPostView(APIView):
 
         # Фильтрация "мусора" по времени чтения
         seconds = int(seconds)
-        if seconds < 10:
+        if seconds < 8:
             return Response({'status': 'too_short'})
 
         now = timezone.now()
