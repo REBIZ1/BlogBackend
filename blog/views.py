@@ -55,8 +55,6 @@ class PostViewSet(viewsets.ModelViewSet):
             'likes_count': post.likes.count()
         }, status=status.HTTP_201_CREATED)
 
-
-
 class TrackPostView(APIView):
     permission_classes = [AllowAny]  # и гости, и юзеры
 
