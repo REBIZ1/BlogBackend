@@ -21,6 +21,9 @@ class PostSerializer(serializers.ModelSerializer):
         allow_null=True
     )
 
+    author_username = serializers.CharField(source='author.username', read_only=True)
+    author_avatar   = serializers.ImageField(source='author.avatar', read_only=True)
+
     # — Вложенный вывод тегов
     tags = TagSerializer(many=True, read_only=True)
     # — Поле приёма тегов по slug'ам
@@ -43,7 +46,8 @@ class PostSerializer(serializers.ModelSerializer):
             'id', 'title', 'content', 'cover', 'views',
             'created_at', 'updated_at',
             'likes_count', 'is_liked',
-            'tags', 'tag_slugs'
+            'tags', 'tag_slugs',
+            'author_username', 'author_avatar',
         ]
 
     def validate_tag_slugs(self, value):

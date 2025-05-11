@@ -3,7 +3,7 @@ from .models import Post, ReadingTime, Like, Tag
 from .serializers import PostSerializer, TagSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.db.models import F
+from django.db.models import F, Count
 from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 from datetime import timedelta
 from django.utils import timezone
@@ -22,19 +22,74 @@ class PostViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
-        """
-        Взять все посты, отсортировать по дате,
-        и, если в GET-параметрах пришёл ?tag=slug,
-        отфильтровать те, у которых есть этот тег.
-        """
-        qs = Post.objects.all().order_by('-created_at')
-        tag_slug = self.request.query_params.get('tag')
-        if tag_slug:
-            qs = qs.filter(tags__slug=tag_slug)
+        # 1) Базовый qs с аннотацией для подсчёта лайков
+        qs = Post.objects.annotate(likes_count=Count('likes'))
+
+        # 2) Фильтрация по тегам (OR-режим)
+        slugs = self.request.query_params.getlist('tag')
+        if slugs:
+            qs = qs.filter(tags__slug__in=slugs).distinct()
+
+        # 3) даты
+        date_from = self.request.query_params.get('date_from')
+        date_to = self.request.query_params.get('date_to')
+        if date_from:
+            qs = qs.filter(created_at__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(created_at__date__lte=date_to)
+
+        # 4) Читаем оба параметра сортировки
+        likes_order = self.request.query_params.get('likes_order')
+        views_order = self.request.query_params.get('views_order')
+
+        # 5) Применяем сортировку по просмотрам, если есть
+        if views_order == 'asc':
+            qs = qs.order_by('views', '-created_at')
+        elif views_order == 'desc':
+            qs = qs.order_by('-views', '-created_at')
+
+        # 6) Если сортировки по просмотрам нет, смотрим сортировку по лайкам
+        elif likes_order == 'asc':
+            qs = qs.order_by('likes_count', '-created_at')
+        elif likes_order == 'desc':
+            qs = qs.order_by('-likes_count', '-created_at')
+
+        # 7) Если ни views_order, ни likes_order не заданы, сортируем по дате создания
+        else:
+            qs = qs.order_by('-created_at')
+
         return qs
 
+    @action(detail=False, methods=['get'], url_path='popular')
+    def popular(self, request):
+        """
+        GET /api/posts/popular/?period=<all|week|month|year>
+        Отдаёт посты, отфильтрованные по дате создания и отсортированные по просмотрам.
+        """
+        period = request.query_params.get('period', 'all')
+        now = timezone.now()
+
+        qs = Post.objects.all()
+        if period == 'week':
+            qs = qs.filter(created_at__gte=now - timedelta(days=7))
+        elif period == 'month':
+            qs = qs.filter(created_at__gte=now - timedelta(days=30))
+        elif period == 'year':
+            qs = qs.filter(created_at__gte=now - timedelta(days=365))
+        # иначе 'all' — без доп. фильтрации по дате
+
+        qs = qs.order_by('-views')
+
+        # пагинация (если настроена)
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
     def perform_create(self, serializer):
-        # При создании поста явно передаём author=current user
         serializer.save(author=self.request.user)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticatedOrReadOnly])
