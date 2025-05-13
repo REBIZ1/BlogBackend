@@ -77,3 +77,18 @@ class ReadingTime(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE)
     seconds_spent = models.PositiveIntegerField()
     timestamp = models.DateTimeField(auto_now_add=True)
+
+class Comment(models.Model):
+    post       = models.ForeignKey('blog.Post', on_delete=models.CASCADE, related_name='comments')
+    author     = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    parent     = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='replies')
+    content    = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('created_at',)
+        verbose_name = 'Комментарий'
+        verbose_name_plural = 'Комментарии'
+
+    def __str__(self):
+        return f'Комментарий #{self.id} к посту "{self.post.title}"'

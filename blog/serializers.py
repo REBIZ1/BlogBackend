@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Post, Like, Tag
+from .models import Post, Like, Tag, Comment
 
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
@@ -82,3 +82,57 @@ class PostSerializer(serializers.ModelSerializer):
         if slugs is not None:
             instance.tags.set(Tag.objects.filter(slug__in=slugs))
         return instance
+
+class RecursiveField(serializers.Serializer):
+    """
+    Позволяет сериализовать вложенные replies рекурсивно.
+    """
+    def to_representation(self, value):
+        serializer = self.parent.parent.__class__(value, context=self.context)
+        return serializer.data
+
+class CommentSerializer(serializers.ModelSerializer):
+    author_username = serializers.CharField(source='author.username', read_only=True)
+    author_avatar   = serializers.ImageField(source='author.avatar', read_only=True)
+    replies         = RecursiveField(many=True, read_only=True)
+
+    content = serializers.CharField(
+        max_length=1000,
+        allow_blank=False,
+        error_messages={
+            'blank': 'Комментарий не может быть пустым.',
+            'max_length': 'Комментарий слишком длинный (не более 1000 символов).'
+        }
+    )
+
+    class Meta:
+        model = Comment
+        fields = (
+            'id',
+            'post',
+            'parent',
+            'author_username',
+            'author_avatar',
+            'content',
+            'created_at',
+            'replies',
+        )
+        read_only_fields = ('author_username', 'author_avatar', 'created_at', 'replies')
+
+    def validate(self, data):
+        """
+        Дополнительная валидация:
+        — Проверим, что parent (если указан) относится к тому же посту.
+        """
+        parent = data.get('parent')
+        post   = data.get('post')
+        if parent and parent.post_id != post.id:
+            raise serializers.ValidationError("Нельзя отвечать на комментарий к другому посту.")
+        return data
+
+    def create(self, validated_data):
+        """
+        Привязываем автора автоматически из request.user.
+        """
+        user = self.context['request'].user
+        return Comment.objects.create(author=user, **validated_data)

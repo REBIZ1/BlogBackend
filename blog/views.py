@@ -1,6 +1,6 @@
-from rest_framework import viewsets, status
-from .models import Post, ReadingTime, Like, Tag
-from .serializers import PostSerializer, TagSerializer
+from rest_framework import viewsets, status,permissions
+from .models import Post, ReadingTime, Like, Tag, Comment
+from .serializers import PostSerializer, TagSerializer, CommentSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import F, Count
@@ -156,3 +156,19 @@ class TrackPostView(APIView):
 
         return Response({'status': 'ok'})
 
+class CommentViewSet(viewsets.ModelViewSet):
+    """
+    CRUD для комментариев.
+    GET  /api/comments/?post=<post_id> — корневые комментарии для поста
+    POST /api/comments/           — создать новый комментарий или ответ
+    """
+    serializer_class = CommentSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        qs = Comment.objects.all()
+        post_id = self.request.query_params.get('post')
+        if post_id:
+            # возвращаем только корневые комментарии для данного поста
+            qs = qs.filter(post_id=post_id, parent__isnull=True)
+        return qs
