@@ -62,16 +62,16 @@ class PostSerializer(serializers.ModelSerializer):
         return False
 
     def create(self, validated_data):
-        slugs = validated_data.pop('tag_slugs', [])
-        # Явно берём только те поля, которые нужны модели
+        slugs = validated_data.pop('tag_slugs', [])  # список Tag-объектов
         post = Post(
-            title=validated_data['title'],
-            content=validated_data['content'],
-            cover=validated_data.get('cover', None),
-            author=self.context['request'].user
+            title = validated_data['title'],
+        content = validated_data['content'],
+        cover = validated_data.get('cover', None),
+        author = self.context['request'].user
         )
         post.save()
-        post.tags.set(Tag.objects.filter(slug__in=slugs))
+        # Вместо повторного фильтра по slug, просто передаём сами объекты
+        post.tags.set(slugs)
         return post
 
     def update(self, instance, validated_data):
@@ -80,7 +80,7 @@ class PostSerializer(serializers.ModelSerializer):
             setattr(instance, attr, val)
         instance.save()
         if slugs is not None:
-            instance.tags.set(Tag.objects.filter(slug__in=slugs))
+            instance.tags.set(slugs)
         return instance
 
 class RecursiveField(serializers.Serializer):
