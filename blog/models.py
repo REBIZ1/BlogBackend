@@ -92,3 +92,26 @@ class Comment(models.Model):
 
     def __str__(self):
         return f'Комментарий #{self.id} к посту "{self.post.title}"'
+
+class Follow(models.Model):
+    """
+    Модель подписок: user подписан на author.
+    """
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='follows'
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='followers'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'author')
+        ordering = ('-created_at',)
+
+    def __str__(self):
+        return f"{self.user.username} → {self.author.username}"

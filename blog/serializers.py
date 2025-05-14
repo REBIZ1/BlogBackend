@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Post, Like, Tag, Comment
+from .models import Post, Like, Tag, Comment, Follow
 from accounts.models import CustomUser
 
 class TagSerializer(serializers.ModelSerializer):
@@ -142,3 +142,13 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
         fields = ('username', 'avatar')
+
+# Подписки
+class FollowSerializer(serializers.ModelSerializer):
+    author_username = serializers.CharField(source='author.username', read_only=True)
+    author_avatar   = serializers.ImageField(source='author.avatar', read_only=True)
+
+    class Meta:
+        model = Follow
+        fields = ('id', 'author', 'author_username', 'author_avatar', 'created_at')
+        read_only_fields = ('id', 'created_at')

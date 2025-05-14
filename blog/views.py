@@ -1,15 +1,18 @@
 from rest_framework import viewsets, status,permissions
-from .models import Post, ReadingTime, Like, Tag, Comment
+from .models import Post, ReadingTime, Like, Tag, Comment, Follow
 from accounts.models import CustomUser
-from .serializers import PostSerializer, TagSerializer, CommentSerializer, UserSerializer
+from .serializers import PostSerializer, TagSerializer, CommentSerializer, UserSerializer, FollowSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import F, Count
-from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly, IsAuthenticated
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework.decorators import action
 from rest_framework.generics import RetrieveAPIView
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -26,6 +29,12 @@ class PostViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         # 1) Базовый qs с аннотацией для подсчёта лайков
         qs = Post.objects.annotate(likes_count=Count('likes'))
+
+        # подписки
+        subs = self.request.query_params.get('subscriptions')
+        if subs and self.request.user.is_authenticated:
+            authors = Follow.objects.filter(user=self.request.user).values_list('author', flat=True)
+            qs = qs.filter(author__in=authors)
 
         # 2) Фильтрация по тегам (OR-режим)
         slugs = self.request.query_params.getlist('tag')
@@ -189,3 +198,44 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = CustomUser.objects.all().order_by('username')
     serializer_class = UserSerializer
     lookup_field = 'username'
+
+class FollowViewSet(viewsets.ViewSet):
+    """
+    GET  /api/follow/      — список авторов, на которых подписан текущий пользователь
+    POST /api/follow/      — подписаться/отписаться: в body передаем {"author": "<username>"}
+    """
+    permission_classes = [IsAuthenticated]
+
+    def list(self, request):
+        qs = Follow.objects.filter(user=request.user).select_related('author')
+        serializer = FollowSerializer(qs, many=True)
+        return Response(serializer.data)
+
+    def create(self, request):
+        username = request.data.get('author')
+        if not username:
+            return Response(
+                {'error': 'Поле author обязательно'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            author = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'Автор не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if author == request.user:
+            return Response(
+                {'error': 'Нельзя подписаться на себя'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        follow, created = Follow.objects.get_or_create(user=request.user, author=author)
+        if not created:
+            # уже подписан → отписываем
+            follow.delete()
+            return Response({'status': 'unfollowed'}, status=status.HTTP_200_OK)
+
+        return Response({'status': 'followed'}, status=status.HTTP_201_CREATED)

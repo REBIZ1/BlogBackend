@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Post, Tag, Like, ReadingTime, Comment
+from .models import Post, Tag, Like, ReadingTime, Comment, Follow
 
 
 @admin.register(Post)
@@ -34,3 +34,9 @@ class CommentAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at',)
     raw_id_fields  = ('post', 'author', 'parent')
     ordering       = ('-created_at',)
+
+@admin.register(Follow)
+class FollowAdmin(admin.ModelAdmin):
+    list_display = ('user', 'author', 'created_at')
+    search_fields = ('user__username', 'author__username')
+    list_filter = ('created_at',)
