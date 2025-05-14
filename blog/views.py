@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status,permissions
 from .models import Post, ReadingTime, Like, Tag, Comment
-from .serializers import PostSerializer, TagSerializer, CommentSerializer
+from accounts.models import CustomUser
+from .serializers import PostSerializer, TagSerializer, CommentSerializer, UserSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import F, Count
@@ -8,6 +9,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 from datetime import timedelta
 from django.utils import timezone
 from rest_framework.decorators import action
+from rest_framework.generics import RetrieveAPIView
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
     """
@@ -54,7 +56,12 @@ class PostViewSet(viewsets.ModelViewSet):
         elif likes_order == 'desc':
             qs = qs.order_by('-likes_count', '-created_at')
 
-        # 7) Если ни views_order, ни likes_order не заданы, сортируем по дате создания
+        # 7) Фильтрация по автору
+        author = self.request.query_params.get('author')
+        if author:
+            qs = qs.filter(author__username=author)
+
+        # 8) Если ни views_order, ни likes_order не заданы, сортируем по дате создания
         else:
             qs = qs.order_by('-created_at')
 
@@ -172,3 +179,13 @@ class CommentViewSet(viewsets.ModelViewSet):
             # возвращаем только корневые комментарии для данного поста
             qs = qs.filter(post_id=post_id, parent__isnull=True)
         return qs
+
+class UserDetailView(RetrieveAPIView):
+    queryset = CustomUser.objects.all()
+    lookup_field = 'username'
+    serializer_class = UserSerializer
+
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = CustomUser.objects.all().order_by('username')
+    serializer_class = UserSerializer
+    lookup_field = 'username'

@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Post, Like, Tag, Comment
+from accounts.models import CustomUser
 
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
@@ -136,3 +137,8 @@ class CommentSerializer(serializers.ModelSerializer):
         """
         user = self.context['request'].user
         return Comment.objects.create(author=user, **validated_data)
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ('username', 'avatar')
