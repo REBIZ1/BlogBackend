@@ -27,50 +27,46 @@ class PostViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
-        # 1) Базовый qs с аннотацией для подсчёта лайков
+        # Базовый qs с аннотацией для подсчёта лайков
         qs = Post.objects.annotate(likes_count=Count('likes'))
 
-        # подписки
-        subs = self.request.query_params.get('subscriptions')
-        if subs and self.request.user.is_authenticated:
-            authors = Follow.objects.filter(user=self.request.user).values_list('author', flat=True)
-            qs = qs.filter(author__in=authors)
-
-        # 2) Фильтрация по тегам (OR-режим)
+        # 1) Теги
         slugs = self.request.query_params.getlist('tag')
         if slugs:
             qs = qs.filter(tags__slug__in=slugs).distinct()
 
-        # 3) даты
+        # 2) Подписки
+        subs = self.request.query_params.get('subscriptions')
+        if subs and self.request.user.is_authenticated:
+            authors = Follow.objects.filter(user=self.request.user)\
+                                    .values_list('author', flat=True)
+            qs = qs.filter(author__in=authors)
+
+        # 3) Автор
+        author = self.request.query_params.get('author')
+        if author:
+            qs = qs.filter(author__username=author)
+
+        # 4) Дата
         date_from = self.request.query_params.get('date_from')
-        date_to = self.request.query_params.get('date_to')
+        date_to   = self.request.query_params.get('date_to')
         if date_from:
             qs = qs.filter(created_at__date__gte=date_from)
         if date_to:
             qs = qs.filter(created_at__date__lte=date_to)
 
-        # 4) Читаем оба параметра сортировки
+        # 5) Сортировка (единственный «иф–элси–элси–элс» блок)
         likes_order = self.request.query_params.get('likes_order')
         views_order = self.request.query_params.get('views_order')
 
-        # 5) Применяем сортировку по просмотрам, если есть
         if views_order == 'asc':
             qs = qs.order_by('views', '-created_at')
         elif views_order == 'desc':
             qs = qs.order_by('-views', '-created_at')
-
-        # 6) Если сортировки по просмотрам нет, смотрим сортировку по лайкам
         elif likes_order == 'asc':
             qs = qs.order_by('likes_count', '-created_at')
         elif likes_order == 'desc':
             qs = qs.order_by('-likes_count', '-created_at')
-
-        # 7) Фильтрация по автору
-        author = self.request.query_params.get('author')
-        if author:
-            qs = qs.filter(author__username=author)
-
-        # 8) Если ни views_order, ни likes_order не заданы, сортируем по дате создания
         else:
             qs = qs.order_by('-created_at')
 
@@ -239,3 +235,33 @@ class FollowViewSet(viewsets.ViewSet):
             return Response({'status': 'unfollowed'}, status=status.HTTP_200_OK)
 
         return Response({'status': 'followed'}, status=status.HTTP_201_CREATED)
+
+class SubscriptionsCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        last = user.subscriptions_last_checked
+
+        # все авторы, на которых подписан пользователь
+        authors = Follow.objects.filter(user=user).values_list('author', flat=True)
+        qs = Post.objects.filter(author__in=authors)
+        if last:
+            qs = qs.filter(created_at__gt=last)
+
+        return Response({'count': qs.count()})
+
+
+class SubscriptionsListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        # обновляем метку «последнего просмотра»
+        user.subscriptions_last_checked = timezone.now()
+        user.save(update_fields=['subscriptions_last_checked'])
+
+        authors = Follow.objects.filter(user=user).values_list('author', flat=True)
+        qs = Post.objects.filter(author__in=authors).order_by('-created_at')
+        serializer = PostSerializer(qs, many=True, context={'request': request})
+        return Response(serializer.data)

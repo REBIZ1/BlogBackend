@@ -5,6 +5,7 @@ from django.conf import settings
 
 class CustomUser(AbstractUser):
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    subscriptions_last_checked = models.DateTimeField(null=True, blank=True)
 
     def save(self, *args, **kwargs):
         try:
