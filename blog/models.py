@@ -1,8 +1,9 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils.text import slugify
-import os
+from unidecode import unidecode
 from django.conf import settings
+import os
 
 User = get_user_model()
 
@@ -12,7 +13,9 @@ class Tag(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)
+            # сперва транслитерируем, потом делаем латинский slug
+            raw = unidecode(self.name)
+            self.slug = slugify(raw)
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -28,6 +31,18 @@ class Post(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     views = models.PositiveIntegerField(default=0)
 
+    def tag_vector(self, tag_index_map):
+        """
+        tag_index_map: dict { slug: position_in_vector }
+        возвращает list[int] длины N_tags, где 1 если у поста есть этот тег
+        """
+        vec = [0] * len(tag_index_map)
+        for t in self.tags.all():
+            idx = tag_index_map.get(t.slug)
+            if idx is not None:
+                vec[idx] = 1
+        return vec
+    
     def save(self, *args, **kwargs):
         # Проверяем: это обновление, а не создание нового объекта
         if self.pk:  # pk — это primary key, то есть id

@@ -11,6 +11,7 @@ from django.utils import timezone
 from rest_framework.decorators import action
 from rest_framework.generics import RetrieveAPIView
 from django.contrib.auth import get_user_model
+from .recommendations import recommend_by_content
 
 User = get_user_model()
 
@@ -264,4 +265,22 @@ class SubscriptionsListView(APIView):
         authors = Follow.objects.filter(user=user).values_list('author', flat=True)
         qs = Post.objects.filter(author__in=authors).order_by('-created_at')
         serializer = PostSerializer(qs, many=True, context={'request': request})
+        return Response(serializer.data)
+
+
+class RecommendationsContentView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            recs = recommend_by_content(request.user, top_n=20)
+        except Exception as e:
+            # распечатаем трассировку в консоль сервера
+            import traceback; traceback.print_exc()
+            return Response(
+                {'error': f'Recommendation engine failed: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        serializer = PostSerializer(recs, many=True, context={'request': request})
         return Response(serializer.data)

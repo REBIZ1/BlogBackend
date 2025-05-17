@@ -84,8 +84,12 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE':   'django.db.backends.postgresql',
+        'NAME':     'myblog_db',
+        'USER':     'postgres',
+        'PASSWORD': 'power15518',
+        'HOST':     'localhost',
+        'PORT':     '5432',
     }
 }
 
@@ -142,4 +146,17 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+}
+
+LOGGING = {
+    'version': 1,
+    'handlers': {
+        'console': { 'class': 'logging.StreamHandler', },
+    },
+    'loggers': {
+        'django.db.backends': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    }
 }

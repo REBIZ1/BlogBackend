@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (PostViewSet, TrackPostView, TagViewSet,
                     CommentViewSet, UserDetailView,
                     UserViewSet, FollowViewSet, SubscriptionsListView,
-                    SubscriptionsCountView)
+                    SubscriptionsCountView, RecommendationsContentView)
 
 router = DefaultRouter()
 router.register(r'posts', PostViewSet, basename='post')
@@ -30,4 +30,9 @@ urlpatterns += [
 urlpatterns += [
     path('subscriptions/count/', SubscriptionsCountView.as_view(), name='subs-count'),
     path('subscriptions/', SubscriptionsListView.as_view(), name='subs-list'),
+]
+
+
+urlpatterns += [
+    path('recommendations/content/', RecommendationsContentView.as_view(), name='rec-content'),
 ]
