@@ -149,14 +149,23 @@ REST_FRAMEWORK = {
 }
 
 LOGGING = {
-    'version': 1,
-    'handlers': {
-        'console': { 'class': 'logging.StreamHandler', },
-    },
-    'loggers': {
-        'django.db.backends': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
         },
-    }
+    },
+    "loggers": {
+        # ваш модуль, например "blog.recommendations"
+        "blog.recommendations": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+        },
+        # корневой логгер
+        "": {
+            "handlers": ["console"],
+            "level": "INFO",
+        },
+    },
 }

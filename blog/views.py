@@ -11,7 +11,7 @@ from django.utils import timezone
 from rest_framework.decorators import action
 from rest_framework.generics import RetrieveAPIView
 from django.contrib.auth import get_user_model
-from .recommendations import recommend_by_content
+from .recommendations import recommend_by_content, recommend_by_cf, recommend_hybrid
 
 User = get_user_model()
 
@@ -284,3 +284,36 @@ class RecommendationsContentView(APIView):
 
         serializer = PostSerializer(recs, many=True, context={'request': request})
         return Response(serializer.data)
+
+class RecommendationsCFView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            recs = recommend_by_cf(request.user, top_n=20)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return Response(
+                {'error': f'CF recommendation failed: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        serializer = PostSerializer(recs, many=True, context={'request': request})
+        return Response(serializer.data)
+
+
+class RecommendationsHybridView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            alpha = float(request.query_params.get('alpha', 0.6))
+            n     = int(request.query_params.get('n', 20))
+            recs  = recommend_hybrid(request.user, top_n=n, alpha=alpha)
+            serializer = PostSerializer(recs, many=True, context={'request': request})
+            return Response(serializer.data)
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return Response(
+                {'error': f'Hybrid recommendation failed: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

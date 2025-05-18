@@ -3,7 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (PostViewSet, TrackPostView, TagViewSet,
                     CommentViewSet, UserDetailView,
                     UserViewSet, FollowViewSet, SubscriptionsListView,
-                    SubscriptionsCountView, RecommendationsContentView)
+                    SubscriptionsCountView, RecommendationsContentView,
+                    RecommendationsCFView, RecommendationsHybridView)
 
 router = DefaultRouter()
 router.register(r'posts', PostViewSet, basename='post')
@@ -35,4 +36,6 @@ urlpatterns += [
 
 urlpatterns += [
     path('recommendations/content/', RecommendationsContentView.as_view(), name='rec-content'),
+    path('recommendations/cf/', RecommendationsCFView.as_view(), name='rec-cf'),
+    path('recommendations/hybrid/', RecommendationsHybridView.as_view(), name='rec-hybrid'),
 ]
