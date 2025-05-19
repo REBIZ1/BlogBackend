@@ -7,8 +7,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from .models import Post, ReadingTime, Like, Comment, Follow
 from .utils import get_tag_index_map
 from django.contrib.auth import get_user_model
-from django.dispatch import receiver
 from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Контентная фильтрация
 LIKE_WEIGHT    = 1.0
@@ -134,7 +138,15 @@ def recommend_by_content(user, top_n=10):
     user_vec = np.concatenate([profile_tags, profile_tfidf])      # (D,)
 
     # 3) считаем MMR
-    idxs = mmr(post_vecs, user_vec, MMR_LAMBDA, top_n)
+    # prefiler: сначала топ-P по простому cosine(tag_vecs, profile_tags)
+    sims_tags = cosine_similarity(tag_vecs, profile_tags.reshape(1, -1)).ravel()
+    prefilter = 30
+    pre_ids = np.argsort(sims_tags)[::-1][:prefilter]
+    # запускаем MMR только на этих предвыбранных векторах
+    pre_vecs = post_vecs[pre_ids]
+    sel_local = mmr(pre_vecs, user_vec, MMR_LAMBDA, top_n)
+    # возвращаем глобальные индексы
+    idxs = [pre_ids[i] for i in sel_local]
 
     # 4) возвращаем
     return [posts[i] for i in idxs]
@@ -270,7 +282,8 @@ def recommend_by_cf(user, top_n=10):
 @receiver([post_save, post_delete], sender=Follow)
 def _on_signal_update_cf(sender, **kwargs):
     # При любом изменении сигналов — перетренировать модель
-    train_cf_model(force=True)
+    global _cf_model
+    _cf_model = None
 
 # === ГИБРИДНЫЕ РЕКОМЕНДАЦИИ (CONTENT + CF) ===
 
@@ -279,6 +292,22 @@ def recommend_hybrid(user, top_n=20, alpha=0.6):
     Гибридная рекомендация с динамическим чередованием:
     в итоговых top_n статей доля content ≈ alpha, доля CF ≈ 1-alpha.
     """
+
+    # --- этап 1: CF ---
+    t0 = time.time()
+    cf_recs = recommend_by_cf(user, top_n=Post.objects.count())
+    t1 = time.time()
+    logger.info(f"[Hybrid] CF took {t1-t0:.3f}s (n={len(cf_recs)})")
+
+    # --- этап 2: Content ---
+    t2 = time.time()
+    content_recs = recommend_by_content(user, top_n=Post.objects.count())
+    t3 = time.time()
+    logger.info(f"[Hybrid] Content took {t3-t2:.3f}s (n={len(content_recs)})")
+
+    # --- этап 3: merge/round-robin ---
+    t4 = time.time()
+
     # 1) Получим оба списка и их нормализованные скоринги
     total = Post.objects.count()
     content_recs = recommend_by_content(user, top_n=total)
@@ -343,5 +372,8 @@ def recommend_hybrid(user, top_n=20, alpha=0.6):
         if post:
             post.hybrid_score = float(hybrid_scores[pid])
             result.append(post)
+
+    t5 = time.time()
+    logger.info(f"[Hybrid] Merge took {t5-t4:.3f}s")
 
     return result
