@@ -10,16 +10,26 @@ class TagSerializer(serializers.ModelSerializer):
 class PostSerializer(serializers.ModelSerializer):
     # — Поля для валидации
     title = serializers.CharField(
-        min_length=4,
-        error_messages={'min_length': 'Заголовок должен быть не менее 4 символов'}
+        min_length=10, max_length=200,
+        error_messages={
+            'min_length': 'Заголовок статьи должен быть не менее 10 символов',
+            'max_length': 'Заголовок статьи не должен превышать 200 символов'
+        }
     )
     content = serializers.CharField(
-        min_length=20,
-        error_messages={'min_length': 'Содержимое должно быть не менее 20 символов'}
+        min_length=50, max_length=5000,
+        error_messages={
+            'min_length': 'Содержимое должно быть не менее 50 символов',
+            'max_length': 'Содержимое не должно превышать 5000 символов'
+        }
     )
     cover = serializers.ImageField(
-        required=False,
-        allow_null=True
+        required=True,
+        allow_null=False,
+        error_messages={
+            'required': 'Пожалуйста, загрузите обложку для статьи',
+            'invalid': 'Неверный формат файла обложки'
+        }
     )
 
     author_username = serializers.CharField(source='author.username', read_only=True)

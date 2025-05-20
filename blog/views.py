@@ -1,5 +1,6 @@
-from rest_framework import viewsets, status,permissions
+from rest_framework import viewsets, status,permissions, filters
 from .models import Post, ReadingTime, Like, Tag, Comment, Follow
+from django_filters.rest_framework import DjangoFilterBackend
 from accounts.models import CustomUser
 from .serializers import PostSerializer, TagSerializer, CommentSerializer, UserSerializer, FollowSerializer
 from rest_framework.views import APIView
@@ -26,6 +27,15 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
 class PostViewSet(viewsets.ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+
+    # Добавляем сюда:
+    filter_backends = [
+        DjangoFilterBackend,    # ваши существующие фильтры по тегам, дате и т.п.
+        filters.SearchFilter,   # поисковый фильтр DRF
+    ]
+    search_fields = [
+        'title',                # искать по полю title
+    ]
 
     def get_queryset(self):
         # Базовый qs с аннотацией для подсчёта лайков
